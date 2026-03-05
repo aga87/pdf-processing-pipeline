@@ -7,6 +7,7 @@ import {
   PdfProcessingService,
   ProcessedFolderNameDuplicatePolicy,
   TextContentPdfFileNamingPolicy,
+  TimestampDuplicateNamingPolicy,
 } from '../services';
 
 const googleServiceAccountAuthService = new GoogleServiceAccountAuthService(
@@ -19,10 +20,12 @@ const googleDriveService = new GoogleDriveService(
 
 const namingPolicy = new TextContentPdfFileNamingPolicy();
 const duplicatePolicy = new ProcessedFolderNameDuplicatePolicy();
+const duplicateNamingPolicy = new TimestampDuplicateNamingPolicy();
 
 export const pdfProcessingService = new PdfProcessingService(
   googleDriveService,
   ENV.PDF_FOLDERS_CONFIG,
   namingPolicy,
-  duplicatePolicy
+  duplicatePolicy,
+  duplicateNamingPolicy
 );

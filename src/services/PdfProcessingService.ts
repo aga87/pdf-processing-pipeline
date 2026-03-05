@@ -27,12 +27,21 @@ export interface PdfDuplicateDetectionPolicy {
   }): Promise<boolean>;
 }
 
+export interface PdfDuplicateNamingPolicy {
+  determineDuplicateFileName(context: {
+    preferredName: string; // usually the derived newName
+    originalName: string;
+    now?: Date; // for testability
+  }): string;
+}
+
 export class PdfProcessingService {
   constructor(
     private googleDriveService: GoogleDriveService,
     private folders: PdfFoldersConfig,
     private namingPolicy: PdfFileNamingPolicy,
-    private duplicatePolicy: PdfDuplicateDetectionPolicy
+    private duplicatePolicy: PdfDuplicateDetectionPolicy,
+    private duplicateNamingPolicy: PdfDuplicateNamingPolicy
   ) {}
 
   /** Lists PDFs in the "to process" folder and processes them concurrently (settled = never throws overall). */
@@ -92,7 +101,7 @@ export class PdfProcessingService {
 
       if (isDuplicate) {
         debugLog(`Duplicate detected → moving to duplicates: ${newName}`);
-        await this.moveToDuplicates(fileId, newName);
+        await this.moveToDuplicates(fileId, fileName, newName);
         return;
       }
 
@@ -132,11 +141,16 @@ export class PdfProcessingService {
     }
   }
 
-  /** Moves duplicates to the duplicates folder, ensuring the filename stays unique. */
-  private async moveToDuplicates(fileId: string, preferredName: string) {
-    const nameWithoutExt = preferredName.replace(/\.pdf$/i, '');
-    const timestamp = Date.now();
-    const uniqueName = `${nameWithoutExt}-duplicate-${timestamp}.pdf`;
+  // Moves duplicates to the duplicates folder, ensuring the filename stays unique.
+  private async moveToDuplicates(
+    fileId: string,
+    originalName: string,
+    preferredName: string
+  ) {
+    const uniqueName = this.duplicateNamingPolicy.determineDuplicateFileName({
+      preferredName,
+      originalName,
+    });
 
     await this.googleDriveService.moveFileToFolder(
       fileId,

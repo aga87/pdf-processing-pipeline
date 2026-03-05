@@ -51,24 +51,28 @@ export class PdfProcessingService {
       batchSize
     );
 
-    const fileNames = files.map(f => f.name).flatMap(n => (n ? [n] : []));
+    const fileIds = files.map(f => f.id).flatMap(n => (n ? [n] : []));
 
-    await Promise.allSettled(fileNames.map(name => this.processPdf(name)));
+    await Promise.allSettled(fileIds.map(id => this.processPdf(id)));
   }
 
   /** End-to-end processing for a single PDF: download → parse → derive title → rename → move to processed/duplicates/failed. */
-  public async processPdf(fileName: string): Promise<void> {
-    debugLog(`Processing PDF: ${fileName}`);
+  public async processPdf(fileId: string): Promise<void> {
+    const metadata = await this.googleDriveService.getFileMetadata(fileId);
 
-    const fileId = await this.googleDriveService.getFileIdByName(
-      fileName,
-      this.folders.toProcess
-    );
-
-    if (!fileId) {
-      logger.warn(`PDF not found in folder: ${fileName}`);
+    if (!metadata) {
+      logger.warn(`Could not retrieve metadata for fileId: ${fileId}`);
       return;
     }
+
+    if (metadata.mimeType !== 'application/pdf') {
+      logger.warn(`Skipping non-PDF file: ${metadata.name}`);
+      return;
+    }
+
+    const { name: fileName } = metadata;
+
+    debugLog(`Processing PDF: ${fileName} (id: ${fileId})`);
 
     try {
       debugLog(`Downloading PDF ${fileId}...`);

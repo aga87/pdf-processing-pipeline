@@ -45,23 +45,30 @@ export class GoogleDriveService {
   }
 
   /**
-   * Retrieves the file ID for a file with a given name inside a folder.
-   * Returns null if no matching file is found.
+   * Retrieves metadata for a file with a given ID.
+   * Returns null if the file cannot be found.
    */
-  public async getFileIdByName(
-    fileName: string,
-    folderId: string
-  ): Promise<string | null> {
+  public async getFileMetadata(
+    fileId: string
+  ): Promise<{ id: string; name: string; mimeType: string } | null> {
     const drive = this.getDrive();
 
-    const res = await drive.files.list({
-      q: `'${folderId}' in parents and name = '${fileName}' and trashed = false`,
-      fields: 'files(id)',
-      pageSize: 1,
+    const res = await drive.files.get({
+      fileId,
+      fields: 'id,name,mimeType',
     });
 
-    const file = res.data.files?.[0];
-    return file?.id ?? null;
+    const file = res.data;
+
+    if (!file?.id || !file?.name || !file?.mimeType) {
+      return null;
+    }
+
+    return {
+      id: file.id,
+      name: file.name,
+      mimeType: file.mimeType,
+    };
   }
 
   /**

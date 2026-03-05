@@ -5,6 +5,7 @@ import {
 } from '../integrations';
 import {
   PdfProcessingService,
+  ProcessedFolderNameDuplicatePolicy,
   TextContentPdfFileNamingPolicy,
 } from '../services';
 
@@ -17,9 +18,11 @@ const googleDriveService = new GoogleDriveService(
 );
 
 const namingPolicy = new TextContentPdfFileNamingPolicy();
+const duplicatePolicy = new ProcessedFolderNameDuplicatePolicy();
 
 export const pdfProcessingService = new PdfProcessingService(
   googleDriveService,
   ENV.PDF_FOLDERS_CONFIG,
-  namingPolicy
+  namingPolicy,
+  duplicatePolicy
 );

@@ -19,11 +19,20 @@ export interface PdfFileNamingPolicy {
   }): string;
 }
 
+export interface PdfDuplicateDetectionPolicy {
+  isDuplicate(context: {
+    candidateName: string;
+    folders: PdfFoldersConfig;
+    googleDriveService: GoogleDriveService;
+  }): Promise<boolean>;
+}
+
 export class PdfProcessingService {
   constructor(
     private googleDriveService: GoogleDriveService,
     private folders: PdfFoldersConfig,
-    private namingPolicy: PdfFileNamingPolicy
+    private namingPolicy: PdfFileNamingPolicy,
+    private duplicatePolicy: PdfDuplicateDetectionPolicy
   ) {}
 
   /** Lists PDFs in the "to process" folder and processes them concurrently (settled = never throws overall). */
@@ -75,10 +84,11 @@ export class PdfProcessingService {
         lines,
       });
 
-      const isDuplicate = await this.googleDriveService.fileExistsInFolder(
-        newName,
-        this.folders.processed
-      );
+      const isDuplicate = await this.duplicatePolicy.isDuplicate({
+        candidateName: newName,
+        folders: this.folders,
+        googleDriveService: this.googleDriveService,
+      });
 
       if (isDuplicate) {
         debugLog(`Duplicate detected → moving to duplicates: ${newName}`);

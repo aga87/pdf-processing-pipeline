@@ -17,6 +17,15 @@ We use **Dockerized Express service deployed on Cloud Run** to run the PDF proce
 - `dev` – Development branch. This is the default branch for ongoing development work. It is where new features and bug fixes are implemented and tested before being merged into the main branch. It is used for deployments to the staging environment.
 
 
+## Setup 
+
+### Google OAuth2 Service Account Authentication
+
+1. Enable Google Drive API for your project.
+2. Create a Service Account in Google Cloud (do not assign any roles)
+3. Generate JSON key, stringify and save to an env var `GOOGLE_SERVICE_ACCOUNT_JSON`
+4. Share Google Drive folders with the service account - enter the service account email and assign Editor or Viewer role, depending on your needs
+
 ## Running locally
 
 Running locally

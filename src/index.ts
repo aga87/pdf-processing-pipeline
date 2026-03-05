@@ -1,7 +1,7 @@
 import 'dotenv/config';
 import * as express from 'express';
 import { errorMiddleware } from './middleware';
-import { helloWorld } from './handlers';
+import { helloWorld, processPdf } from './handlers';
 import { logger } from './logging';
 
 const app = express();
@@ -9,6 +9,8 @@ const app = express();
 app.use(express.json());
 
 app.get('/hello', helloWorld);
+
+app.post('/pdf', processPdf);
 
 app.use(errorMiddleware);
 

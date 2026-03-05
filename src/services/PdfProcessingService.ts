@@ -1,0 +1,138 @@
+import { GoogleDriveService } from '../integrations';
+import { getHttpErrorStatusCode, getErrorMessage } from '../models';
+import { parsePdf } from '../libs';
+import { debugLog, logger } from '../logging';
+
+export interface PdfFoldersConfig {
+  toProcess: string;
+  processed: string;
+  duplicates: string;
+  failed: string;
+}
+
+export interface PdfFileNamingPolicy {
+  determineFileName(context: {
+    originalName: string;
+    lines?: string[];
+    buffer?: Buffer;
+    metadata?: Record<string, unknown>;
+  }): string;
+}
+
+export class PdfProcessingService {
+  constructor(
+    private googleDriveService: GoogleDriveService,
+    private folders: PdfFoldersConfig,
+    private namingPolicy: PdfFileNamingPolicy
+  ) {}
+
+  /** Lists PDFs in the "to process" folder and processes them concurrently (settled = never throws overall). */
+  public async processPdfs(batchSize = 50): Promise<void> {
+    const files = await this.googleDriveService.listFilesInFolder(
+      this.folders.toProcess,
+      batchSize
+    );
+
+    const fileNames = files.map(f => f.name).flatMap(n => (n ? [n] : []));
+
+    await Promise.allSettled(fileNames.map(name => this.processPdf(name)));
+  }
+
+  /** End-to-end processing for a single PDF: download → parse → derive title → rename → move to processed/duplicates/failed. */
+  public async processPdf(fileName: string): Promise<void> {
+    debugLog(`Processing PDF: ${fileName}`);
+
+    const fileId = await this.googleDriveService.getFileIdByName(
+      fileName,
+      this.folders.toProcess
+    );
+
+    if (!fileId) {
+      logger.warn(`PDF not found in folder: ${fileName}`);
+      return;
+    }
+
+    try {
+      debugLog(`Downloading PDF ${fileId}...`);
+      const buffer = await this.googleDriveService.downloadFileAsBuffer(fileId);
+
+      debugLog('Parsing PDF text...');
+      /**
+       * A real PDF must start with:
+        - header containing %PDF-
+        - hex starting with 255044462d
+       */
+      debugLog('header:', buffer.subarray(0, 16).toString('utf8'));
+      debugLog('hex:', buffer.subarray(0, 8).toString('hex'));
+      const lines = await parsePdf(buffer);
+
+      debugLog(
+        'Extracting title from PDF text and creating a safe filename...'
+      );
+
+      const newName = this.namingPolicy.determineFileName({
+        originalName: fileName,
+        lines,
+      });
+
+      const isDuplicate = await this.googleDriveService.fileExistsInFolder(
+        newName,
+        this.folders.processed
+      );
+
+      if (isDuplicate) {
+        debugLog(`Duplicate detected → moving to duplicates: ${newName}`);
+        await this.moveToDuplicates(fileId, newName);
+        return;
+      }
+
+      debugLog(`Renaming PDF and moving to processed as: ${newName}`);
+      await this.googleDriveService.moveFileToFolder(
+        fileId,
+        this.folders.toProcess,
+        this.folders.processed,
+        newName
+      );
+
+      logger.info(`Processed PDF: ${fileName} → ${newName}`);
+    } catch (err: unknown) {
+      const statusCode = getHttpErrorStatusCode(err);
+      const msg = getErrorMessage(err);
+      const stack = err instanceof Error ? err.stack : null;
+
+      logger.error(
+        `Error ${statusCode} processing PDF: ${fileName} - ${msg} - ${stack}`
+      );
+
+      // Best-effort: move to failed (keep original name)
+      try {
+        await this.googleDriveService.moveFileToFolder(
+          fileId,
+          this.folders.toProcess,
+          this.folders.failed,
+          fileName
+        );
+      } catch (moveErr: unknown) {
+        logger.error(
+          `Failed to move PDF to failed folder: ${fileName} - ${getErrorMessage(
+            moveErr
+          )}`
+        );
+      }
+    }
+  }
+
+  /** Moves duplicates to the duplicates folder, ensuring the filename stays unique. */
+  private async moveToDuplicates(fileId: string, preferredName: string) {
+    const nameWithoutExt = preferredName.replace(/\.pdf$/i, '');
+    const timestamp = Date.now();
+    const uniqueName = `${nameWithoutExt}-duplicate-${timestamp}.pdf`;
+
+    await this.googleDriveService.moveFileToFolder(
+      fileId,
+      this.folders.toProcess,
+      this.folders.duplicates,
+      uniqueName
+    );
+  }
+}

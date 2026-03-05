@@ -1,4 +1,15 @@
-# Cloud-native PDF Processing Pipeline - PoC
+# Cloud-na PDF Processing Pipeline - PoC
+
+
+## Tech stack
+
+- Node.js / TypeScript
+- Express
+- Docker
+- Cloud Run
+- Google Drive API (Service Account authentication)
+
+We use **Dockerized Express service deployed on Cloud Run** to run the PDF processing service in a fully controlled runtime environment. By deploying to Cloud Run, we can package system-level dependencies such as `fonts-noto`, `fonts-dejavu`, and `poppler-utils` directly into a custom container. This ensures accurate PDF text extraction by providing the necessary font rendering and PDF parsing capabilities within the container itself.
 
 ## Branches
 

@@ -14,3 +14,15 @@ export const getHttpErrorStatusCode = (err: unknown): number => {
   // Treat all network or unknown errors as 500 since the frontend only needs to know it's a server failure
   return 500;
 };
+
+export const getErrorMessage = (err: unknown): string => {
+  if (err instanceof Error) return err.message;
+
+  if (typeof err === 'string') return err;
+
+  try {
+    return JSON.stringify(err);
+  } catch {
+    return 'Unknown error';
+  }
+};

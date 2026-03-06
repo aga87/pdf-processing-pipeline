@@ -247,3 +247,112 @@ resource.type="cloud_run_revision"
 resource.labels.service_name="<SERVICE_NAME>"
 ```
 
+
+## Cloud Tasks Setup
+
+### 1. Enable required APIs (one-off)
+
+Before creating the queue, enable the required Google Cloud APIs.
+
+```shell
+gcloud services enable cloudtasks.googleapis.com
+gcloud services enable iamcredentials.googleapis.com
+```
+
+
+### 2. Create Google Cloud Task Queue (one-off)
+
+Before running the service, create the Cloud Tasks queue used to dispatch PDF processing jobs.
+
+This only needs to be done once per environment.
+
+
+```shell
+#Command
+gcloud tasks queues create <QUEUE_NAME> \
+  --location=<REGION> \
+  --max-dispatches-per-second=<DISPATCH_RATE> \
+  --max-concurrent-dispatches=<MAX_CONCURRENCY>
+
+# Example  
+gcloud tasks queues create pdf-processing-queue \
+  --location=europe-west3 \
+  --max-dispatches-per-second=1 \
+  --max-concurrent-dispatches=1
+```
+
+The queue throttles execution so that PDFs are processed in a controlled way.
+- 	max-dispatches-per-second: 1 → prevents API spikes
+- 	max-concurrent-dispatches: 1 → ensures only one PDF is processed at a time
+
+If many PDFs are uploaded simultaneously, they will be queued and processed sequentially.
+
+
+### 3. Create the Cloud Tasks invoker service account (one-off)
+
+```shell
+# Command
+gcloud iam service-accounts create <SERVICE_ACCOUNT_NAME> \
+  --display-name="<DISPLAY_NAME>"
+
+# Example  
+gcloud iam service-accounts create pdf-processing-task-invoker \
+  --display-name="PDF Processing Task Invoker"
+```
+
+Verify and get the email: 
+
+```shell
+gcloud iam service-accounts list --filter="email:pdf-processing-task-invoker"
+```
+ 
+
+
+### 4. Grant permission to invoke the Cloud Run worker
+
+```shell
+# Command
+gcloud run services add-iam-policy-binding <SERVICE_NAME> \
+  --member="serviceAccount:<SERVICE_ACCOUNT_NAME>@<PROJECT_ID>.iam.gserviceaccount.com" \
+  --role="roles/run.invoker" \
+  --region=<REGION>
+  
+# Example  
+gcloud run services add-iam-policy-binding pdf-processing-service \
+  --member="serviceAccount:pdf-processing-task-invoker@drive-pdf-processing-pipeline.iam.gserviceaccount.com" \
+  --role="roles/run.invoker" \
+  --region=europe-west3
+```
+
+
+**Cloud Tasks will now be able to call the worker using OIDC token** with this service account.
+
+
+
+## 5. Configure the Cloud Tasks environment variables
+
+Your application needs the queue and invoker identity in its runtime config.
+
+**Required env vars**
+
+```
+GCP_PROJECT_ID
+CLOUD_TASKS_LOCATION
+CLOUD_TASKS_PDF_PROCESSING_QUEUE_NAME
+CLOUD_TASKS_INVOKER_SERVICE_ACCOUNT_EMAIL
+```
+
+If the Cloud Run service already exists, **update** it with:
+
+```shell
+# Command
+gcloud run services update <SERVICE_NAME> \
+  --region=<REGION> \
+  --update-env-vars "<ENV_VAR_1>=<VALUE_1>,<ENV_VAR_2>=<VALUE_2>"
+
+# Example  
+gcloud run services update pdf-processing-service \
+  --region=europe-west3 \
+  --update-env-vars "GCP_PROJECT_ID=drive-pdf-processing-pipeline,CLOUD_TASKS_LOCATION=europe-west3,CLOUD_TASKS_PDF_PROCESSING_QUEUE_NAME=pdf-processing-queue,CLOUD_TASKS_INVOKER_SERVICE_ACCOUNT_EMAIL=pdf-processing-task-invoker@drive-pdf-processing-pipeline.iam.gserviceaccount.com"
+```
+

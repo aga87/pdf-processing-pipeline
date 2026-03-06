@@ -1,8 +1,18 @@
+import type { GoogleCloudTasksConfig } from '../integrations';
 import type { PdfFoldersConfig } from '../services';
 import { requireEnv } from './requireEnv';
 
 export const ENV = {
   config: {
+    cloudTasks: {
+      projectId: requireEnv('GCP_PROJECT_ID'),
+      location: requireEnv('CLOUD_TASKS_LOCATION'),
+      queueName: requireEnv('CLOUD_TASKS_PDF_PROCESSING_QUEUE_NAME'),
+      serviceAccountEmail: requireEnv(
+        'CLOUD_TASKS_INVOKER_SERVICE_ACCOUNT_EMAIL'
+      ),
+    } satisfies GoogleCloudTasksConfig,
+
     pdfFolders: {
       toProcess: requireEnv('PDFS_TO_PROCESS_FOLDER_ID'),
       processed: requireEnv('PDFS_PROCESSED_FOLDER_ID'),

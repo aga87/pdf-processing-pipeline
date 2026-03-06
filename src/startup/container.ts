@@ -11,7 +11,7 @@ import {
 } from '../services';
 
 const googleServiceAccountAuthService = new GoogleServiceAccountAuthService(
-  ENV.GOOGLE_SERVICE_ACCOUNT_JSON
+  ENV.secrets.googleServiceAccountJson
 );
 
 const googleDriveService = new GoogleDriveService(
@@ -24,7 +24,7 @@ const duplicateNamingPolicy = new TimestampDuplicateNamingPolicy();
 
 export const pdfProcessingService = new PdfProcessingService(
   googleDriveService,
-  ENV.PDF_FOLDERS_CONFIG,
+  ENV.config.pdfFolders,
   namingPolicy,
   duplicatePolicy,
   duplicateNamingPolicy

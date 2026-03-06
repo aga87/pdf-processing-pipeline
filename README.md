@@ -70,8 +70,6 @@ The service expects the following Google Drive folders:
 
 ## Running locally
 
-Running locally
-
 ```bash
 npm run build
 
@@ -82,4 +80,170 @@ docker run --env-file .env -p 8080:8080 pdf-processing-service
 ```
 
 Note: Ensure required environment variables are defined in your local `.env` file.
+
+## Deploying to Cloud Run
+
+### One-off infrastructure setup
+
+#### 1. Enable required APIs
+
+Enable Cloud Run API and Secret Manager
+
+```
+gcloud services enable run.googleapis.com
+gcloud services enable secretmanager.googleapis.com
+```
+
+#### 2. Create the Cloud Run service account and grant it access to read secrets
+
+
+```shell
+# Command
+gcloud iam service-accounts create <SERVICE_ACCOUNT_NAME> \
+  --display-name="<DISPLAY_NAME>"
+  
+# Example
+gcloud iam service-accounts create pdf-processing-service-sa \
+  --display-name="PDF Processing Cloud Run Service"
+```
+
+Get the email
+
+```shell
+gcloud iam service-accounts list --filter="email:pdf-processing-service-sa"
+```
+
+Grant permissions
+```shell
+# Command
+gcloud projects add-iam-policy-binding <PROJECT_ID> \
+  --member="serviceAccount:<SERVICE_ACCOUNT_NAME>@<PROJECT_ID>.iam.gserviceaccount.com" \
+  --role="roles/secretmanager.secretAccessor"
+  
+# Example
+gcloud projects add-iam-policy-binding drive-pdf-processing-pipeline \
+  --member="serviceAccount:pdf-processing-service-sa@drive-pdf-processing-pipeline.iam.gserviceaccount.com" \
+  --role="roles/secretmanager.secretAccessor"
+```
+
+#### 3. Authenticate Docker with Artifact Registry (**one-off**)
+
+```shell
+# Command
+gcloud auth configure-docker <REGION>-docker.pkg.dev
+
+# Example
+gcloud auth configure-docker europe-west3-docker.pkg.dev
+```
+
+
+#### 4. Create the Artifact Registry repository
+
+```shell
+# Command
+gcloud artifacts repositories create <REPOSITORY_NAME> \
+--project=<PROJECT_ID> \
+--repository-format=docker \
+--location=<REGION> \
+--description="Docker repository for <DESCRIPTION>"
+
+# Example
+gcloud artifacts repositories create pdf-processing-repo \
+  --project=drive-pdf-processing-pipeline \
+  --repository-format=docker \
+  --location=europe-west3 \
+  --description="Docker repository for PDF processing service"
+```
+
+#### 5. Populate secrets in Google Secret Manager
+
+Only secrets. No configs should be placed here.
+
+```shell
+gcloud secrets create GOOGLE_SERVICE_ACCOUNT_JSON
+```
+
+### Build & Deploy 
+
+#### 1. Build the image locally
+
+```shell
+# First, compile Typescript locally:
+npm run build
+
+# When you’re on an M1/M2 Mac and deploying to Cloud Run:
+docker buildx build --platform linux/amd64 -t <LOCAL_IMAGE_NAME> <BUILD_CONTEXT>
+
+# Example
+docker buildx build --platform linux/amd64 -t pdf-processing-service .
+```
+
+
+#### 2. Tag the Image for Artifact Registry (GCR)
+
+```shell
+docker tag <LOCAL_IMAGE_NAME> <REGION>-docker.pkg.dev/<PROJECT_ID>/<REPOSITORY_NAME>/<REMOTE_IMAGE_NAME>
+
+# Example
+docker tag pdf-processing-service europe-west3-docker.pkg.dev/drive-pdf-processing-pipeline/pdf-processing-repo/pdf-processing-service
+```
+
+#### 3. Push to Artifact Registry
+
+```shell
+# Command
+docker push <REGION>-docker.pkg.dev/<PROJECT_ID>/<REPOSITORY_NAME>/pdf-processing-service
+
+# Example
+docker push europe-west3-docker.pkg.dev/drive-pdf-processing-pipeline/pdf-processing-repo/pdf-processing-service
+```
+
+#### 4. Deploy to Cloud run
+
+##### **First deployment  - pass secrets and config** 
+
+```shell
+# Command
+gcloud run deploy <SERVICE_NAME> \
+  --image <REGION>-docker.pkg.dev/<PROJECT_ID>/<REPOSITORY_NAME>/<IMAGE_NAME> \
+  --region <REGION> \
+  --allow-unauthenticated \
+  --service-account=<SERVICE_ACCOUNT_EMAIL> \
+  --concurrency=<CONCURRENCY> \
+  --max-instances=<MAX_INSTANCES> \
+  --set-env-vars "<CONFIG_VAR_1>=<VALUE_1>,<CONFIG_VAR_2>=<VALUE_2>" \
+  --update-secrets "<SECRET_ENV_VAR_1>=<SECRET_NAME_1>:latest"
+```
+
+
+```shell
+# Eample
+gcloud run deploy pdf-processing-service \
+  --image europe-west3-docker.pkg.dev/drive-pdf-processing-pipeline/pdf-processing-repo/pdf-processing-service \
+  --region europe-west3 \
+  --allow-unauthenticated \
+  --service-account=pdf-processing-service-sa@drive-pdf-processing-pipeline.iam.gserviceaccount.com \
+  --concurrency=1 \
+  --max-instances=1 \
+  --set-env-vars "PDFS_TO_PROCESS_FOLDER_ID=1863uE4CLsfpogKtEt3kOrJlg05F54rOO,PDFS_PROCESSED_FOLDER_ID=1GFxPgOeoqQlT2vfPdYVzO4TM0XkmpiQC,PDFS_DUPLICATES_FOLDER_ID=1tA3xSjQ0nz68vWa_8SC14OBw-Cdhadn1,PDFS_FAILED_FOLDER_ID=1LAIY15MwdJnl8WRv_nkAfBfRB65GTwjQ" \
+  --update-secrets "GOOGLE_SERVICE_ACCOUNT_JSON=GOOGLE_SERVICE_ACCOUNT_JSON:latest"
+```
+
+##### Subsequent deployments
+
+```shell
+gcloud run deploy pdf-processing-service \
+  --image europe-west3-docker.pkg.dev/drive-pdf-processing-pipeline/pdf-processing-repo/pdf-processing-service \
+  --region europe-west3
+```
+
+
+#### Viewing logs
+
+Go to the [Log Explorer](https://console.cloud.google.com/logs) ane run this query:
+
+```
+resource.type="cloud_run_revision"
+resource.labels.service_name="<SERVICE_NAME>"
+```
 

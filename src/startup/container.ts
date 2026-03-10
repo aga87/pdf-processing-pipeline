@@ -1,5 +1,6 @@
 import { ENV } from '../config';
 import {
+  GoogleCloudTasksService,
   GoogleDriveService,
   GoogleServiceAccountAuthService,
 } from '../integrations';
@@ -16,6 +17,10 @@ const googleServiceAccountAuthService = new GoogleServiceAccountAuthService(
 
 const googleDriveService = new GoogleDriveService(
   googleServiceAccountAuthService
+);
+
+const googleCloudTasksService = new GoogleCloudTasksService(
+  ENV.config.cloudTasks
 );
 
 const namingPolicy = new TextContentPdfFileNamingPolicy();

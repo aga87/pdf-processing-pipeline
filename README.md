@@ -1,47 +1,78 @@
-# Cloud-native PDF Processing Pipeline - PoC
+# Cloud-native PDF Processing Pipeline
 
-This service processes PDF files stored in a Google Drive folder and demonstrates the pipeline structure:
+This service processes PDF files stored in a Google Drive folder and demonstrates a simple, cloud-native processing pipeline.
 
 ```
 Retrieve → Parse → Transform → Decide → Route
 ```
 
-The current implementation extracts a simple title from the PDF text to generate a filename. This is intentionally minimal and serves only as an example of the Transform step.
+The current implementation extracts a simple title from the PDF text to generate a filename. This transformation step is intentionally minimal and serves only as an example.
 
-The pipeline is designed so that transformation logic can be replaced via **pluggable policies** without changing the processing workflow.
+
+The pipeline is designed so that transformation logic can be replaced via **pluggable policies** (strategy pattern) without changing the overall workflow.
 
 The system is designed to be:
 
-- Deterministic
-- Idempotent (duplicate-safe)
-- Cloud-friendly
-- Fully automated
-- **Extensible via policies (strategy pattern)**
+- **Deterministic** — the same input produces the same outcome
+- **Idempotent** — files can be safely retried without duplication  
+- **Cloud-native** — built around Cloud Run and Cloud Tasks 
+- **Fully automated** — no manual intervention required 
+- **Extensible** — transformation logic can evolve independently
+    
+## **Workflow**
+
+At a high level the service performs the following steps:
+
+1. Retrieve PDF files from a **“to process”** Google Drive folder.
+2. Download each file.
+3. Extract a simple title from the PDF text.
+4. Check whether the document is a duplicate.
+5. Route the file to the appropriate folder:
+    
+
+- ✅ **Processed** — renamed and stored
+- ♻️ **Duplicates** — duplicate content detected
+- ❌ **Failed** — processing error occurred
+    
+
+## **How the system runs end-to-end**
+
+File discovery and file processing are intentionally **decoupled**.
+A dispatcher scans the Drive folder and creates one Cloud Task per file.
+Cloud Tasks then controls processing rate, retries, and delivery.
+
+```
+Google Drive folder
+        │
+        ▼
+Dispatcher scans files
+        │
+        ▼
+enqueueHttpTask({ fileId })
+        │
+        ▼
+Cloud Tasks queue
+(rate limited)
+        │
+        ▼
+Cloud Run worker endpoint
+        │
+        ▼
+PDF processing pipeline
+```
 
 
-## Workflow
+## **Processing strategy**
 
-It performs the following high-level workflow:
+Each file is processed independently through the queue. Key principles:
 
-1. Retrieves PDF files from a “to process” folder.
-2. Downloads each PDF.
-3. Extracts a simple title from the PDF text.
-4. Checks for duplicates.
-5. Moves the file to:
+- 1 task = 1 PDF
+- Workers process exactly one file per task
+- Failures and retries occur per file, not per batch
 
-- ✅ Processed folder (renamed)
-- ♻️ Duplicates folder
-- ❌ Failed folder (if processing errors occur)
+This approach isolates failures, enables controlled throughput, and prevents bursts of uploads from overwhelming downstream APIs.
 
-## Tech stack
-
-- Node.js / TypeScript
-- Express
-- Docker
-- Cloud Run
-- Google Drive API (Service Account authentication)
-
-We use **Dockerized Express service deployed on Cloud Run** to run the PDF processing service in a fully controlled runtime environment. By deploying to Cloud Run, we can package system-level dependencies such as `fonts-noto`, `fonts-dejavu`, and `poppler-utils` directly into a custom container. This ensures accurate PDF text extraction by providing the necessary font rendering and PDF parsing capabilities within the container itself.
+___
 
 ## Branches
 
@@ -49,6 +80,7 @@ We use **Dockerized Express service deployed on Cloud Run** to run the PDF proce
 
 - `dev` – Development branch. This is the default branch for ongoing development work. It is where new features and bug fixes are implemented and tested before being merged into the main branch. It is used for deployments to the staging environment.
 
+___
 
 ## Setup 
 

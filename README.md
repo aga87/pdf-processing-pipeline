@@ -389,3 +389,32 @@ gcloud run services update pdf-processing-service \
   --update-env-vars "GCP_PROJECT_ID=drive-pdf-processing-pipeline,CLOUD_TASKS_LOCATION=europe-west3,CLOUD_TASKS_PDF_PROCESSING_QUEUE_NAME=pdf-processing-queue,CLOUD_TASKS_INVOKER_SERVICE_ACCOUNT_EMAIL=pdf-processing-task-invoker@drive-pdf-processing-pipeline.iam.gserviceaccount.com"
 ```
 
+### 6. Deploy the application version with Cloud Tasks integration (one-off)
+
+Get the worker URL: 
+
+```shell
+# Command
+gcloud run services describe <SERVICE_NAME> \
+  --region=<REGION> \
+  --format='value(status.url)'
+
+# Example  
+gcloud run services describe pdf-processing-service \
+  --region=europe-west3 \
+  --format='value(status.url)'
+```
+
+**Note:** The worker URL must include the **processing endpoint path**, not just the base Cloud Run service URL.
+
+```shell
+https://<CLOUD_RUN_SERVICE_URL>/<PROCESSING_ENDPOINT>
+```
+
+Redeploy 
+
+```shell
+gcloud run services update pdf-processing-service \
+  --region=europe-west3 \
+  --update-env-vars "PDF_PROCESSING_WORKER_URL=https://pdf-processing-service-m6hxyu3hsa-ey.a.run.app/process-pdf"
+```

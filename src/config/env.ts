@@ -12,7 +12,9 @@ export const ENV = {
         'CLOUD_TASKS_INVOKER_SERVICE_ACCOUNT_EMAIL'
       ),
     } satisfies GoogleCloudTasksConfig,
-
+    cloudRun: {
+      pdfProcessingWorkerUrl: requireEnv('PDF_PROCESSING_WORKER_URL'),
+    },
     pdfFolders: {
       toProcess: requireEnv('PDFS_TO_PROCESS_FOLDER_ID'),
       processed: requireEnv('PDFS_PROCESSED_FOLDER_ID'),

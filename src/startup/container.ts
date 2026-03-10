@@ -6,6 +6,7 @@ import {
 } from '../integrations';
 import {
   PdfProcessingService,
+  PdfProcessingTaskEnqueuer,
   ProcessedFolderNameDuplicatePolicy,
   TextContentPdfFileNamingPolicy,
   TimestampDuplicateNamingPolicy,
@@ -21,6 +22,13 @@ const googleDriveService = new GoogleDriveService(
 
 const googleCloudTasksService = new GoogleCloudTasksService(
   ENV.config.cloudTasks
+);
+
+export const pdfProcessingTaskEnqueuer = new PdfProcessingTaskEnqueuer(
+  googleDriveService,
+  googleCloudTasksService,
+  ENV.config.pdfFolders,
+  ENV.config.cloudRun.pdfProcessingWorkerUrl
 );
 
 const namingPolicy = new TextContentPdfFileNamingPolicy();

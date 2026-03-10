@@ -17,7 +17,12 @@ export class GoogleServiceAccountAuthService {
     } catch (err: unknown) {
       const ERROR_MSG =
         'Failed to load service account credentials from secret.';
-      logger.error(ERROR_MSG, { err });
+
+      logger.error(ERROR_MSG, {
+        errMessage: err instanceof Error ? err.message : String(err),
+        errStack: err instanceof Error ? err.stack : undefined,
+        errName: err instanceof Error ? err.name : undefined,
+      });
       throw new HttpError(ERROR_MSG, 500);
     }
   }

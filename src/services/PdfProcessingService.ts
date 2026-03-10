@@ -44,18 +44,6 @@ export class PdfProcessingService {
     private duplicateNamingPolicy: PdfDuplicateNamingPolicy
   ) {}
 
-  /** Lists PDFs in the "to process" folder and processes them concurrently (settled = never throws overall). */
-  public async processPdfs(batchSize = 50): Promise<void> {
-    const files = await this.googleDriveService.listFilesInFolder(
-      this.folders.toProcess,
-      batchSize
-    );
-
-    const fileIds = files.map(f => f.id).flatMap(n => (n ? [n] : []));
-
-    await Promise.allSettled(fileIds.map(id => this.processPdf(id)));
-  }
-
   /** End-to-end processing for a single PDF: download → parse → derive title → rename → move to processed/duplicates/failed. */
   public async processPdf(fileId: string): Promise<void> {
     const metadata = await this.googleDriveService.getFileMetadata(fileId);

@@ -306,30 +306,63 @@ Verify and get the email:
 gcloud iam service-accounts list --filter="email:pdf-processing-task-invoker"
 ```
  
+### **4. Grant required IAM permissions** (one-off)
 
-
-### 4. Grant permission to invoke the Cloud Run worker
+#### **4a. Allow the task caller service account to invoke the Cloud Run worker**
 
 ```shell
 # Command
 gcloud run services add-iam-policy-binding <SERVICE_NAME> \
-  --member="serviceAccount:<SERVICE_ACCOUNT_NAME>@<PROJECT_ID>.iam.gserviceaccount.com" \
+  --member="serviceAccount:<TASK_INVOKER_SERVICE_ACCOUNT>@<PROJECT_ID>.iam.gserviceaccount.com" \
   --role="roles/run.invoker" \
   --region=<REGION>
-  
-# Example  
+
+# Example
 gcloud run services add-iam-policy-binding pdf-processing-service \
   --member="serviceAccount:pdf-processing-task-invoker@drive-pdf-processing-pipeline.iam.gserviceaccount.com" \
   --role="roles/run.invoker" \
   --region=europe-west3
 ```
 
+This allows **Cloud Tasks to call the worker over HTTPS using an OIDC token** from that service account. 
 
-**Cloud Tasks will now be able to call the worker using OIDC token** with this service account.
+#### **4b. Allow the Cloud Run service that enqueues tasks to create tasks**
+
+```shell
+# Command
+gcloud projects add-iam-policy-binding <PROJECT_ID> \
+  --member="serviceAccount:<ENQUEUER_SERVICE_ACCOUNT>@<PROJECT_ID>.iam.gserviceaccount.com" \
+  --role="roles/cloudtasks.enqueuer"
+
+# Example
+gcloud projects add-iam-policy-binding drive-pdf-processing-pipeline \
+  --member="serviceAccount:pdf-processing-service-sa@drive-pdf-processing-pipeline.iam.gserviceaccount.com" \
+  --role="roles/cloudtasks.enqueuer"
+```
+
+This is needed because **Cloud Run service runtime identity** is what calls the Cloud Tasks API to create the task. roles/cloudtasks.enqueuer includes cloudtasks.tasks.create. 
+
+  
+#### **4c. Allow the enqueuer service account to act as the task invoker service account**
+
+```shell
+# Command
+gcloud iam service-accounts add-iam-policy-binding \
+  <TASK_INVOKER_SERVICE_ACCOUNT>@<PROJECT_ID>.iam.gserviceaccount.com \
+  --member="serviceAccount:<ENQUEUER_SERVICE_ACCOUNT>@<PROJECT_ID>.iam.gserviceaccount.com" \
+  --role="roles/iam.serviceAccountUser"
+
+# Example
+gcloud iam service-accounts add-iam-policy-binding \
+  pdf-processing-task-invoker@drive-pdf-processing-pipeline.iam.gserviceaccount.com \
+  --member="serviceAccount:pdf-processing-service-sa@drive-pdf-processing-pipeline.iam.gserviceaccount.com" \
+  --role="roles/iam.serviceAccountUser"
+```
+
+This is needed **only if** the service creating the task is different from the service account specified in oidcToken.serviceAccountEmail. 
 
 
-
-## 5. Configure the Cloud Tasks environment variables
+### 5. Configure the Cloud Tasks environment variables (one-off)
 
 Your application needs the queue and invoker identity in its runtime config.
 

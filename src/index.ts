@@ -1,7 +1,7 @@
 import 'dotenv/config';
 import * as express from 'express';
 import { errorMiddleware } from './middleware';
-import { helloWorld, processPdf } from './handlers';
+import { enqueuePdfsToProcess, helloWorld, processPdf } from './handlers';
 import { logger } from './logging';
 
 const app = express();
@@ -10,7 +10,9 @@ app.use(express.json());
 
 app.get('/hello', helloWorld);
 
-app.post('/pdf', processPdf);
+app.post('/process-pdf', processPdf);
+
+app.post('/pdf-processing-tasks', enqueuePdfsToProcess);
 
 app.use(errorMiddleware);
 

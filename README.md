@@ -239,7 +239,6 @@ docker push europe-west3-docker.pkg.dev/drive-pdf-processing-pipeline/pdf-proces
 gcloud run deploy <SERVICE_NAME> \
   --image <REGION>-docker.pkg.dev/<PROJECT_ID>/<REPOSITORY_NAME>/<IMAGE_NAME> \
   --region <REGION> \
-  --allow-unauthenticated \
   --service-account=<SERVICE_ACCOUNT_EMAIL> \
   --concurrency=<CONCURRENCY> \
   --max-instances=<MAX_INSTANCES> \
@@ -253,7 +252,6 @@ gcloud run deploy <SERVICE_NAME> \
 gcloud run deploy pdf-processing-service \
   --image europe-west3-docker.pkg.dev/drive-pdf-processing-pipeline/pdf-processing-repo/pdf-processing-service \
   --region europe-west3 \
-  --allow-unauthenticated \
   --service-account=pdf-processing-service-sa@drive-pdf-processing-pipeline.iam.gserviceaccount.com \
   --concurrency=1 \
   --max-instances=1 \
@@ -269,6 +267,7 @@ gcloud run deploy pdf-processing-service \
   --region europe-west3
 ```
 
+### Testing
 
 #### Viewing logs
 
@@ -278,6 +277,27 @@ Go to the [Log Explorer](https://console.cloud.google.com/logs) ane run this que
 resource.type="cloud_run_revision"
 resource.labels.service_name="<SERVICE_NAME>"
 ```
+
+#### Invoking private endpoints
+
+You can test private Cloud Run services using your own Google identity. Your **identity** is simply the Google account you authenticated with gcloud.
+
+First, grant permissions: 
+
+```shell
+gcloud run services add-iam-policy-binding <SERVICE-NAME> \
+  --region=europe-west3 \
+  --member="user:<EMAIL>" \
+  --role="roles/run.invoker"
+```
+
+Second, generate an identity token:
+
+```shell
+gcloud auth print-identity-token
+```
+
+And use it as a Bearer token in the Authorization header.
 
 
 ## Cloud Tasks Setup

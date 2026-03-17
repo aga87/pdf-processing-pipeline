@@ -14,6 +14,11 @@ app.post('/process-pdf', processPdf);
 
 app.post('/pdf-processing-tasks', enqueuePdfsToProcess);
 
+app.post('/cron/pdf-processing-tasks', async (req, res) => {
+  logger.info('Cron trigger received: enqueue PDF processing tasks');
+  await enqueuePdfsToProcess(req, res);
+});
+
 app.use(errorMiddleware);
 
 const PORT = parseInt(process.env.PORT || '8080', 10);

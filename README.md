@@ -470,3 +470,60 @@ gcloud run services update pdf-processing-service \
   --region=europe-west3 \
   --update-env-vars "PDF_PROCESSING_WORKER_URL=https://pdf-processing-service-m6hxyu3hsa-ey.a.run.app/process-pdf"
 ```
+
+## Cloud Scheduler Cron Setup for Cloud Run
+
+### Create a Scheduler invoker service account
+
+Create a dedicated service account that Cloud Scheduler will use to generate the OIDC token when calling the Cloud Run endpoint.
+
+```shell
+gcloud iam service-accounts create pdf-processing-scheduler-sa \
+  --display-name="PDF Processing Scheduler Invoker"
+```
+
+Verify and retrieve the email:
+
+```shell
+gcloud iam service-accounts list \
+  --filter="email:pdf-processing-scheduler-sa"
+```
+
+Outputs `pdf-processing-scheduler-sa@drive-pdf-processing-pipeline.iam.gserviceaccount.com`
+
+### Grant it **`roles/run.invoker`**
+
+Allow the Scheduler service account to invoke the Cloud Run service.
+
+Run:
+
+```shell
+gcloud run services add-iam-policy-binding pdf-processing-service \
+  --region=europe-west3 \
+  --member="serviceAccount:pdf-processing-scheduler-sa@drive-pdf-processing-pipeline.iam.gserviceaccount.com" \
+  --role="roles/run.invoker"
+```
+
+### Create the Scheduler job with OIDC
+
+Create a Scheduler job that calls the Cloud Run cron endpoint using an **OIDC identity token**.
+
+The token will be generated for the Scheduler service account and verified by Cloud Run before the request reaches the application.
+
+Required parameters:
+
+- `--oidc-service-account-email` → service account used to generate the identity token
+- `--oidc-token-audience` → the Cloud Run service URL the token is intended for
+
+Example:
+
+```shell
+gcloud scheduler jobs create http process-pdfs-cron \
+  --location=europe-west3 \
+  --schedule="*/5 6-18 * * 1-5" \
+  --time-zone="Europe/Amsterdam" \
+  --uri="https://pdf-processing-service-m6hxyu3hsa-ey.a.run.app/cron/pdf-processing-tasks" \
+  --http-method=POST \
+  --oidc-service-account-email="pdf-processing-scheduler-sa@drive-pdf-processing-pipeline.iam.gserviceaccount.com" \
+  --oidc-token-audience="https://pdf-processing-service-m6hxyu3hsa-ey.a.run.app/"
+```

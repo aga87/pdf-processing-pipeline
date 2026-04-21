@@ -18,7 +18,16 @@ The system is designed to be:
 - **Cloud-native** — built around Cloud Run and Cloud Tasks 
 - **Fully automated** — no manual intervention required 
 - **Extensible** — transformation logic can evolve independently
-    
+
+## Tech Stack
+
+- Node.js
+- Typescript
+- Google Drive API
+- GCP Cloud Tasks
+- GCP Cloud Scheduler
+- GCP Cloud Run
+
 ## **Workflow**
 
 At a high level the service performs the following steps:
